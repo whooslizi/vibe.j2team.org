@@ -5,7 +5,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { pages } from '@/data/pages-loader'
 import { padIndex } from '@/data/homepage'
-import { categories } from '@/data/categories'
+import { categories, type CategoryId } from '@/data/categories'
 import FavoriteButton from '@/components/FavoriteButton.vue'
 
 let observer: IntersectionObserver | null = null
@@ -62,7 +62,7 @@ function normalize(str: string): string {
 }
 
 const searchQuery = ref('')
-const activeCategory = ref<string | null>(null)
+const activeCategory = ref<CategoryId | null>(null)
 
 const searchablePages = pages.map((p) => ({
   ...p,
@@ -94,7 +94,7 @@ const isFiltering = computed(() => {
   return searchQuery.value.trim() !== '' || activeCategory.value !== null
 })
 
-function toggleCategory(id: string) {
+function toggleCategory(id: CategoryId) {
   activeCategory.value = activeCategory.value === id ? null : id
 }
 
@@ -104,7 +104,7 @@ function clearFilters() {
 }
 
 const categoryCounts = computed(() => {
-  const counts: Record<string, number> = {}
+  const counts: Partial<Record<CategoryId, number>> = {}
   for (const page of pages) {
     if (page.category) {
       counts[page.category] = (counts[page.category] || 0) + 1
