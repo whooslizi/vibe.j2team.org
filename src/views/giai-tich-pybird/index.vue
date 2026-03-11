@@ -16,7 +16,7 @@
       </div>
 
       <div v-if="gameState === 'SETUP'" class="overlay setup-screen">
-        <h2>Ngày thi Bách Khoa</h2>
+        <h2>Nhập học Bách Khoa</h2>
         <input v-model="playerName" type="text" placeholder="Nhập tên" class="input-name" />
         <p>Chọn nhân vật đại diện:</p>
         <div class="char-selection">
@@ -35,6 +35,7 @@
       <div v-if="gameState === 'START'" class="overlay">
         <h2>Giải Tích Py-Bird</h2>
         <p>Thí sinh: <b>{{ playerName }}</b></p>
+        <p>Kỷ lục cá nhân: <b style="color: #2ecc71; font-size: 18px;">{{ highScore }}</b> câu</p>
         <p>Hệ thống: <b>Adaptive Random</b> | Phao: <b>{{ cheats }}</b></p>
         <p>Chạm màn hình hoặc nhấn Space để bắt đầu.</p>
       </div>
@@ -42,7 +43,11 @@
       <div v-if="gameState === 'GAMEOVER'" class="overlay gameover-screen">
         <h2>TẠCH MÔN!</h2>
         <p>Thí sinh: {{ playerName }}</p>
-        <p>Số câu sống sót: {{ score }}</p>
+        <p>Số câu sống sót: <b>{{ score }}</b></p>
+        <p v-if="score >= highScore && score > 0" style="color: #f1c40f; font-weight: bold; animation: popIn 0.5s;">
+          🎉 KỶ LỤC MỚI! 🎉
+        </p>
+        <p v-else>Kỷ lục của bạn: {{ highScore }}</p>
         <button @click="resetGame" class="btn">Đóng học phí học lại</button>
       </div>
 
@@ -51,24 +56,9 @@
         <p>Thần đồng Giải Tích: {{ playerName }}!</p>
         <p>Bạn đã vượt qua 50 câu.</p>
         <button @click="resetGame" class="btn">Cày lại GPA</button>
-      <div v-if="gameState === 'START'" class="overlay">
-        <h2>Giải Tích Py-Bird</h2>
-        <p>Nhấn phím Space để chơi. Mỗi cột là 1 câu Giải tích.</p>
       </div>
 
-      <div v-if="gameState === 'GAMEOVER'" class="overlay">
-        <h2>TẠCH MÔN!</h2>
-        <p>Điểm của bạn: {{ score }} / 20</p>
-        <button @click="resetGame" class="btn">Học lại</button>
-      </div>
-
-      <div v-if="gameState === 'WIN'" class="overlay win">
-        <h2>QUA MÔN</h2>
-        <p>Chúc mừng bạn đã sống sót qua 20 câu Giải tích Bách Khoa!</p>
-        <button @click="resetGame" class="btn">Chơi lại</button>
-      </div>
-
-      <div v-if="gameState === 'QUESTION'" class="question-modal">
+      <div v-if="gameState === 'QUESTION' && currentQuestion" class="question-modal">
         <div class="question-box">
           <div class="question-header">
             <h3>Câu {{ score + 1 }} - Mức: {{ currentDifficultyText }}</h3>
@@ -79,11 +69,6 @@
           <div v-if="currentQuestion.type === 'mcq'" class="options">
             <button 
               v-for="(opt, index) in currentQuestion.options" 
-          <h3>Câu {{ score + 1 }} / 20</h3>
-          <p class="question-text">{{ currentQuestion?.q }}</p>
-          <div class="options">
-            <button
-              v-for="(opt, index) in currentQuestion?.options"
               :key="index"
               @click="answerQuestion(index)"
               class="btn-option"
@@ -118,55 +103,72 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 
-const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
-const shuffleArray = (array: any[]) => array.sort(() => Math.random() - 0.5);
+interface Question {
+  type: 'mcq' | 'tf' | 'short';
+  q: string;
+  ans: string | number | boolean;
+  options?: string[];
+}
 
-const generateQuestion = (currentScore: number) => {
+interface Pipe {
+  x: number;
+  top: number;
+  bottom: number;
+  passed: boolean;
+}
+
+const randInt = (min: number, max: number): number => Math.floor(Math.random() * (max - min + 1)) + min;
+const shuffleArray = <T>(array: T[]): T[] => {
+  const newArray = [...array];
+  return newArray.sort(() => Math.random() - 0.5);
+};
+
+const generateQuestion = (currentScore: number): Question => {
   let difficulty = 'easy';
   if (currentScore >= 5 && currentScore < 15) difficulty = 'medium';
   else if (currentScore >= 15) difficulty = 'hard';
 
   const easyTemplates = [
-    () => {
+    (): Question => {
       const a = randInt(2, 9);
       const b = randInt(2, 9);
       const ansStr = `${a}/${b}`;
       const options = shuffleArray([ansStr, `${b}/${a}`, `${a * b}`, "0"]);
       return { type: 'mcq', q: `Tính giới hạn: lim(x->0) [sin(${a}x) / ${b}x]`, options, ans: options.indexOf(ansStr) };
     },
-    () => {
+    (): Question => {
       const a = randInt(2, 6);
       const b = randInt(2, 5);
       const ans = a * b; 
       return { type: 'short', q: `Cho hàm số f(x) = ${a}x^${b} + x. Đạo hàm f'(1) bằng?`, ans: (ans + 1).toString() };
     },
-    () => {
+    (): Question => {
       const a = randInt(2, 8);
       return { type: 'tf', q: `Đạo hàm của f(x) = e^(${a}x) là f'(x) = e^(${a}x).`, ans: false }; 
     }
   ];
 
   const mediumTemplates = [
-    () => {
+    (): Question => {
       const a = randInt(2, 5);
       const ans = a * 2; 
       const options = shuffleArray([`${ans}`, `${ans / 2}`, `${ans * 2}`, "0"]);
       return { type: 'mcq', q: `Tính tích phân I = ∫(0 đến 2) ${a}x dx`, options, ans: options.indexOf(`${ans}`) };
     },
-    () => {
+    (): Question => {
       const a = randInt(2, 5);
       const b = randInt(2, 5);
       const ans = 2 * a;
       return { type: 'short', q: `Cho f(x,y) = ${a}x^2 + ${b}y^2. Tính đạo hàm riêng f'_x tại điểm (1, 1).`, ans: ans.toString() };
     },
-    () => {
+    (): Question => {
       const a = randInt(2, 10);
       return { type: 'tf', q: `Bán kính hội tụ R của chuỗi lũy thừa ∑ (x^n) / ${a}^n là R = ${a}.`, ans: true };
     }
   ];
 
   const hardTemplates = [
-    () => {
+    (): Question => {
       const r1 = randInt(1, 3);
       const r2 = randInt(4, 6);
       const S = r1 + r2;
@@ -175,12 +177,12 @@ const generateQuestion = (currentScore: number) => {
       const options = shuffleArray([ansStr, `y = C1*e^(-${r1}x) + C2*e^(-${r2}x)`, `y = C1*cos(${r1}x) + C2*sin(${r2}x)`, "y = C1*x + C2"]);
       return { type: 'mcq', q: `Nghiệm tổng quát của PT vi phân: y'' - ${S}y' + ${P}y = 0 là?`, options, ans: options.indexOf(ansStr) };
     },
-    () => {
+    (): Question => {
       const a = randInt(2, 5);
       const ans = Math.PI * Math.pow(a, 2);
       return { type: 'tf', q: `Diện tích hình tròn x^2 + y^2 <= ${a}^2 tính bằng tích phân kép là ${ans}π.`, ans: false };
     },
-    () => {
+    (): Question => {
       const a = randInt(2, 9);
       return { type: 'short', q: `Hệ số a_0 trong chuỗi Fourier của hàm lẻ f(x) = ${a}x trên (-π, π) bằng?`, ans: "0" };
     }
@@ -204,8 +206,9 @@ const chars = ['🐧', '🐥', '🐸', '🤓', '👽'];
 const selectedChar = ref('🤓');
 
 const score = ref(0);
-const cheats = ref(2); // Cho 2 cái phao
-const currentQuestion = ref<any>(null);
+const highScore = ref(0);
+const cheats = ref(2); 
+const currentQuestion = ref<Question | null>(null);
 const currentDifficultyText = computed(() => {
   if (score.value < 5) return 'Dễ';
   if (score.value < 15) return 'Trung bình';
@@ -222,7 +225,7 @@ let animationFrameId: number;
 let lastTime = 0;
 
 const BIRD = { x: 50, y: 150, width: 24, height: 24, velocity: 0, gravity: 0.35, jump: -6.5 };
-const PIPES: any[] = [];
+const PIPES: Pipe[] = [];
 const PIPE_WIDTH = 45;
 const PIPE_GAP = 140;
 const BASE_SPEED = 2.5;
@@ -246,7 +249,7 @@ const resetGameData = () => {
   BIRD.velocity = 0;
   PIPES.length = 0;
   score.value = 0;
-  cheats.value = 2; // Reset phao
+  cheats.value = 2; 
   frames = 0;
   lastTime = performance.now();
   showMessage.value = false;
@@ -256,6 +259,13 @@ const resetGame = () => {
   resetGameData();
   gameState.value = 'START';
   draw();
+};
+
+const checkHighScore = () => {
+  if (score.value > highScore.value) {
+    highScore.value = score.value;
+    localStorage.setItem('hust_bird_highscore', highScore.value.toString());
+  }
 };
 
 const flap = () => {
@@ -317,6 +327,7 @@ const update = (dt: number) => {
   BIRD.y += BIRD.velocity * multiplier;
 
   if (BIRD.y + BIRD.height >= 480 || BIRD.y <= 0) {
+    checkHighScore();
     gameState.value = 'GAMEOVER';
     return;
   }
@@ -338,6 +349,7 @@ const update = (dt: number) => {
       BIRD.x + BIRD.width > pipe.x &&
       (BIRD.y < pipe.top || BIRD.y + BIRD.height > 480 - pipe.bottom)
     ) {
+      checkHighScore();
       gameState.value = 'GAMEOVER';
       return;
     }
@@ -358,7 +370,7 @@ const update = (dt: number) => {
 const draw = () => {
   if (!ctx || !gameCanvas.value) return;
   if (score.value < 15) ctx.fillStyle = '#70c5ce';
-  else ctx.fillStyle = '#e67e22';
+  else ctx.fillStyle = '#e67e22'; 
 
   ctx.fillRect(0, 0, gameCanvas.value.width, gameCanvas.value.height);
   drawPipes();
@@ -381,13 +393,14 @@ const triggerToast = (text: string, type: string) => {
   messageText.value = text;
   messageType.value = type;
   showMessage.value = true;
-  setTimeout(() => showMessage.value = false, 1500);
+  setTimeout(() => { showMessage.value = false; }, 1500);
 };
 
 const handleCorrect = () => {
   score.value++;
   triggerToast('Đỉnh cao!', 'success');
   if (score.value >= 50) {
+    checkHighScore();
     gameState.value = 'WIN';
   } else {
     gameState.value = 'PLAYING';
@@ -398,7 +411,8 @@ const handleCorrect = () => {
 };
 
 const handleWrong = () => {
-  triggerToast('Ngu!', 'error');
+  checkHighScore();
+  triggerToast('Sai rồi!', 'error');
   gameState.value = 'GAMEOVER';
 };
 
@@ -406,23 +420,35 @@ const useCheat = () => {
   if (cheats.value > 0) {
     cheats.value--;
     triggerToast('Đã dùng phao!', 'success');
-    handleCorrect();
+    handleCorrect(); 
   }
 };
 
-const answerQuestion = (answer: any) => {
-  if (answer === currentQuestion.value.ans) handleCorrect();
-  else handleWrong();
+const answerQuestion = (answer: string | number | boolean) => {
+  if (currentQuestion.value && answer === currentQuestion.value.ans) {
+    handleCorrect();
+  } else {
+    handleWrong();
+  }
 };
 
 const answerShortQuestion = () => {
   const userAns = shortAnswerInput.value.trim().toLowerCase();
-  const correctAns = currentQuestion.value.ans.toLowerCase();
-  if (userAns === correctAns) handleCorrect();
-  else handleWrong();
+  if (currentQuestion.value) {
+    const correctAns = currentQuestion.value.ans.toString().toLowerCase();
+    if (userAns === correctAns) {
+      handleCorrect();
+    } else {
+      handleWrong();
+    }
+  }
 };
 
 onMounted(() => {
+  const savedScore = localStorage.getItem('hust_bird_highscore');
+  if (savedScore) {
+    highScore.value = parseInt(savedScore, 10);
+  }
   window.addEventListener('keydown', handleKeyDown);
 });
 
@@ -553,14 +579,6 @@ canvas {
 }
 
 .gameover-screen { background: rgba(192, 57, 43, 0.9); }
-.lose-img {
-  width: 120px;
-  border-radius: 10px;
-  margin-bottom: 15px;
-  border: 3px solid white;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
 
 .btn {
   background-color: #e67e22;
@@ -584,20 +602,6 @@ canvas {
   box-shadow: 0 0 0 #d35400;
 }
 .start-btn { background-color: #27ae60; box-shadow: 0 4px 0 #2ecc71; }
-  padding: 12px 24px;
-  font-size: 18px;
-  font-weight: bold;
-  border-radius: 8px;
-  cursor: pointer;
-  text-shadow: 1px 1px 0 #000;
-  box-shadow: 0 5px 0 #d35400;
-  transition: all 0.1s ease;
-}
-
-.btn:active {
-  transform: translateY(5px);
-  box-shadow: 0 0 0 #d35400;
-}
 
 .question-modal {
   position: absolute;
@@ -606,7 +610,6 @@ canvas {
   width: 100%;
   height: 100%;
   background: rgba(44, 62, 80, 0.95);
-  background: rgba(0, 0, 0, 0.85);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -662,38 +665,6 @@ canvas {
 
 .options { display: flex; flex-direction: column; gap: 8px; }
 .tf-options { flex-direction: row; }
-  background: #fff;
-  width: 90%;
-  border-radius: 12px;
-  padding: 20px;
-  box-sizing: border-box;
-  text-align: center;
-  border: 4px solid #f1c40f;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.question-box h3 {
-  margin: 0 0 15px 0;
-  color: #7f8c8d;
-  font-size: 18px;
-  border-bottom: 2px solid #ecf0f1;
-  padding-bottom: 10px;
-}
-
-.question-text {
-  font-size: 18px;
-  font-weight: bold;
-  color: #2c3e50;
-  margin-bottom: 20px;
-  line-height: 1.4;
-}
-
-.options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
 
 .btn-option {
   background: #3498db;
@@ -712,19 +683,6 @@ canvas {
 .false-btn { background: #e74c3c; box-shadow: 0 4px 0 #c0392b; flex: 1; }
 
 .mt-2 { margin-top: 10px; width: 100%; }
-  padding: 15px 10px;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  box-shadow: 0 5px 0 #2980b9;
-  transition: all 0.1s ease;
-}
-
-.btn-option:active {
-  transform: translateY(5px);
-  box-shadow: 0 0 0 #2980b9;
-}
 
 .toast-message {
   position: absolute;
@@ -749,45 +707,5 @@ canvas {
 @keyframes slideDown {
   0% { top: 50px; opacity: 0; }
   100% { top: 70px; opacity: 1; }
-  padding: 10px 20px;
-  border-radius: 20px;
-  color: white;
-  font-weight: bold;
-  font-size: 16px;
-  z-index: 30;
-  animation: slideDown 0.3s ease-out;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-}
-
-.toast-message.success {
-  background-color: #2ecc71;
-  border: 2px solid #27ae60;
-}
-
-.toast-message.error {
-  background-color: #e74c3c;
-  border: 2px solid #c0392b;
-}
-
-@keyframes popIn {
-  0% {
-    transform: scale(0.8);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-@keyframes slideDown {
-  0% {
-    top: 50px;
-    opacity: 0;
-  }
-  100% {
-    top: 70px;
-    opacity: 1;
-  }
 }
 </style>
