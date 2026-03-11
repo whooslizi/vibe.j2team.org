@@ -51,6 +51,21 @@
         <p>Thần đồng Giải Tích: {{ playerName }}!</p>
         <p>Bạn đã vượt qua 50 câu.</p>
         <button @click="resetGame" class="btn">Cày lại GPA</button>
+      <div v-if="gameState === 'START'" class="overlay">
+        <h2>Giải Tích Py-Bird</h2>
+        <p>Nhấn phím Space để chơi. Mỗi cột là 1 câu Giải tích.</p>
+      </div>
+
+      <div v-if="gameState === 'GAMEOVER'" class="overlay">
+        <h2>TẠCH MÔN!</h2>
+        <p>Điểm của bạn: {{ score }} / 20</p>
+        <button @click="resetGame" class="btn">Học lại</button>
+      </div>
+
+      <div v-if="gameState === 'WIN'" class="overlay win">
+        <h2>QUA MÔN</h2>
+        <p>Chúc mừng bạn đã sống sót qua 20 câu Giải tích Bách Khoa!</p>
+        <button @click="resetGame" class="btn">Chơi lại</button>
       </div>
 
       <div v-if="gameState === 'QUESTION'" class="question-modal">
@@ -64,6 +79,11 @@
           <div v-if="currentQuestion.type === 'mcq'" class="options">
             <button 
               v-for="(opt, index) in currentQuestion.options" 
+          <h3>Câu {{ score + 1 }} / 20</h3>
+          <p class="question-text">{{ currentQuestion?.q }}</p>
+          <div class="options">
+            <button
+              v-for="(opt, index) in currentQuestion?.options"
               :key="index"
               @click="answerQuestion(index)"
               class="btn-option"
@@ -101,7 +121,6 @@ import { ref, onMounted, onUnmounted, computed } from 'vue';
 const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
 const shuffleArray = (array: any[]) => array.sort(() => Math.random() - 0.5);
 
-// --- HỆ THỐNG SINH ĐỀ ĐỘNG (PROCEDURAL QUESTION GENERATOR) ---
 const generateQuestion = (currentScore: number) => {
   let difficulty = 'easy';
   if (currentScore >= 5 && currentScore < 15) difficulty = 'medium';
@@ -159,7 +178,7 @@ const generateQuestion = (currentScore: number) => {
     () => {
       const a = randInt(2, 5);
       const ans = Math.PI * Math.pow(a, 2);
-      return { type: 'tf', q: `Diện tích hình tròn x^2 + y^2 <= ${a}^2 tính bằng tích phân kép là ${ans}π.`, ans: false }; // Đã nhân pi rồi mà ghi ans*pi là sai
+      return { type: 'tf', q: `Diện tích hình tròn x^2 + y^2 <= ${a}^2 tính bằng tích phân kép là ${ans}π.`, ans: false };
     },
     () => {
       const a = randInt(2, 9);
@@ -338,9 +357,8 @@ const update = (dt: number) => {
 
 const draw = () => {
   if (!ctx || !gameCanvas.value) return;
-  // Dynamic background based on score
   if (score.value < 15) ctx.fillStyle = '#70c5ce';
-  else ctx.fillStyle = '#e67e22'; // Hard mode background
+  else ctx.fillStyle = '#e67e22';
 
   ctx.fillRect(0, 0, gameCanvas.value.width, gameCanvas.value.height);
   drawPipes();
@@ -388,7 +406,7 @@ const useCheat = () => {
   if (cheats.value > 0) {
     cheats.value--;
     triggerToast('Đã dùng phao!', 'success');
-    handleCorrect(); // Skip câu luôn
+    handleCorrect();
   }
 };
 
@@ -566,6 +584,20 @@ canvas {
   box-shadow: 0 0 0 #d35400;
 }
 .start-btn { background-color: #27ae60; box-shadow: 0 4px 0 #2ecc71; }
+  padding: 12px 24px;
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 8px;
+  cursor: pointer;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow: 0 5px 0 #d35400;
+  transition: all 0.1s ease;
+}
+
+.btn:active {
+  transform: translateY(5px);
+  box-shadow: 0 0 0 #d35400;
+}
 
 .question-modal {
   position: absolute;
@@ -574,6 +606,7 @@ canvas {
   width: 100%;
   height: 100%;
   background: rgba(44, 62, 80, 0.95);
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -629,6 +662,38 @@ canvas {
 
 .options { display: flex; flex-direction: column; gap: 8px; }
 .tf-options { flex-direction: row; }
+  background: #fff;
+  width: 90%;
+  border-radius: 12px;
+  padding: 20px;
+  box-sizing: border-box;
+  text-align: center;
+  border: 4px solid #f1c40f;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.question-box h3 {
+  margin: 0 0 15px 0;
+  color: #7f8c8d;
+  font-size: 18px;
+  border-bottom: 2px solid #ecf0f1;
+  padding-bottom: 10px;
+}
+
+.question-text {
+  font-size: 18px;
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
 .btn-option {
   background: #3498db;
@@ -647,6 +712,19 @@ canvas {
 .false-btn { background: #e74c3c; box-shadow: 0 4px 0 #c0392b; flex: 1; }
 
 .mt-2 { margin-top: 10px; width: 100%; }
+  padding: 15px 10px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #2980b9;
+  transition: all 0.1s ease;
+}
+
+.btn-option:active {
+  transform: translateY(5px);
+  box-shadow: 0 0 0 #2980b9;
+}
 
 .toast-message {
   position: absolute;
@@ -671,5 +749,45 @@ canvas {
 @keyframes slideDown {
   0% { top: 50px; opacity: 0; }
   100% { top: 70px; opacity: 1; }
+  padding: 10px 20px;
+  border-radius: 20px;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  z-index: 30;
+  animation: slideDown 0.3s ease-out;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.toast-message.success {
+  background-color: #2ecc71;
+  border: 2px solid #27ae60;
+}
+
+.toast-message.error {
+  background-color: #e74c3c;
+  border: 2px solid #c0392b;
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  0% {
+    top: 50px;
+    opacity: 0;
+  }
+  100% {
+    top: 70px;
+    opacity: 1;
+  }
 }
 </style>
